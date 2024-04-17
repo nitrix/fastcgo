@@ -69,9 +69,7 @@
 //              FUNCTIONS
 // ======================================
 
-#define N_SAVE                           \
-	N_MOV fn+0(FP), N_LC                 \ // Save the first argument as the function to call
-	N_MOV arg0+8(FP), N_A0                 // Save the second argument
+// Change the stack pointer to g0's stack and calls the first argument with the second argument.
 
 #define N_BODY                           \
 	N_MOV N_GVAR, N_T1                   \ // Load g
@@ -83,14 +81,66 @@
 	CALL N_LC                            \ // Call the saved function
 	N_MOV N_C0, N_SP                       // Restore SP
 
-// Change the stack pointer to g0's stack and calls the first argument with the second argument.
 TEXT ·UnsafeCall1(SB), NOSPLIT, $0-0
-	N_SAVE
+	N_MOV fn+0(FP), N_LC
+	N_MOV arg0+8(FP), N_A0
 	N_BODY
 	RET
 
-TEXT ·UnsafeCall1r1(SB), NOSPLIT, $0-0
-	N_SAVE
+TEXT ·UnsafeCall2(SB), NOSPLIT, $0-0
+	N_MOV fn+0(FP), N_LC
+	N_MOV arg0+8(FP), N_A0
+	N_MOV arg1+16(FP), N_A1
+	N_BODY
+	RET
+
+TEXT ·UnsafeCall3(SB), NOSPLIT, $0-0
+	N_MOV fn+0(FP), N_LC
+	N_MOV arg0+8(FP), N_A0
+	N_MOV arg1+16(FP), N_A1
+	N_MOV arg2+24(FP), N_A2
+	N_BODY
+	RET
+
+TEXT ·UnsafeCall4(SB), NOSPLIT, $0-0
+	N_MOV fn+0(FP), N_LC
+	N_MOV arg0+8(FP), N_A0
+	N_MOV arg1+16(FP), N_A1
+	N_MOV arg2+24(FP), N_A2
+	N_MOV arg3+32(FP), N_A3
+	N_BODY
+	RET
+
+TEXT ·UnsafeCall1Return1(SB), NOSPLIT, $0-0
+	N_MOV fn+0(FP), N_LC
+	N_MOV arg0+8(FP), N_A0
 	N_BODY
 	N_MOV N_LR, ret+16(FP)  // Place the return value on the stack
+	RET
+
+TEXT ·UnsafeCall2Return1(SB), NOSPLIT, $0-0
+	N_MOV fn+0(FP), N_LC
+	N_MOV arg0+8(FP), N_A0
+	N_MOV arg1+16(FP), N_A1
+	N_BODY
+	N_MOV N_LR, ret+24(FP)
+	RET
+
+TEXT ·UnsafeCall3Return1(SB), NOSPLIT, $0-0
+	N_MOV fn+0(FP), N_LC
+	N_MOV arg0+8(FP), N_A0
+	N_MOV arg1+16(FP), N_A1
+	N_MOV arg2+24(FP), N_A2
+	N_BODY
+	N_MOV N_LR, ret+32(FP)
+	RET
+
+TEXT ·UnsafeCall4Return1(SB), NOSPLIT, $0-0
+	N_MOV fn+0(FP), N_LC
+	N_MOV arg0+8(FP), N_A0
+	N_MOV arg1+16(FP), N_A1
+	N_MOV arg2+24(FP), N_A2
+	N_MOV arg3+32(FP), N_A3
+	N_BODY
+	N_MOV N_LR, ret+40(FP)
 	RET

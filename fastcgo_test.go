@@ -20,7 +20,7 @@ func TestExample(t *testing.T) {
 
 	outputStr := strings.TrimSpace(string(outputBytes))
 
-	if outputStr != "42 26" {
+	if outputStr != "18 5 10 17 | 18 5 10 17" {
 		fmt.Println("Got:", outputStr)
 		t.Fail()
 	}
