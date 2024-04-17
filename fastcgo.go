@@ -2,8 +2,9 @@ package fastcgo
 
 import "unsafe"
 
-// Directly calls a C function from Go by temporarily replacing the stack.
-// This does not collaborates with Cgo not the GC. Use sparingly.
+// These directly call a C function from Go by temporarily hijacking the goroutine's stack.
+// DO NOT USE unless you know what you're doing.
+
 func UnsafeCall1(fn unsafe.Pointer, arg0 uintptr)
 func UnsafeCall2(fn unsafe.Pointer, arg0 uintptr, arg1 uintptr)
 func UnsafeCall3(fn unsafe.Pointer, arg0 uintptr, arg1 uintptr, arg2 uintptr)
