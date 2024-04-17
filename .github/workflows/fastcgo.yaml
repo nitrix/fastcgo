@@ -1,0 +1,71 @@
+name: fastcgo
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  windows:
+    name: Windows (amd64)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: stable
+      - name: Verify Go
+        run: go version
+      - name: Test
+        run: |
+          go test
+
+  linux:
+    name: Linux (amd64)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: stable
+      - name: Verify Go
+        run: go version
+      - name: Build
+        run: |
+          go test
+
+  macOSamd64:
+    name: MacOS (amd64)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: stable
+      - name: Verify Go
+        run: go version
+      - name: Build
+        run: |
+          go test
+
+  macOSarm64:
+    name: MacOS (arm64)
+    runs-on: macos-latest-xlarge
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: stable
+      - name: Verify Go
+        run: go version
+      - name: Build
+        run: |
+          go test
