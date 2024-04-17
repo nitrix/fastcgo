@@ -65,16 +65,28 @@
 //              FUNCTIONS
 // ======================================
 
+#define N_SAVE                           \
+	N_MOV fn+0(FP), N_AP                 \ // Save the first argument as the function to call
+	N_MOV arg0+8(FP), N_A0                 // Save the second argument
+
+#define N_CENTER                         \
+	N_MOV N_GVAR, N_T1                   \ // Load g
+	N_MOV g_m(N_T1), N_T0                \ // Load g.m
+	N_MOV N_SP, N_C0                     \ // Save SP in a callee-saved register
+	N_MOV m_g0(N_T0), N_T1               \ // Load m.go
+	N_MOV (g_sched+gobuf_sp)(N_T1), N_SP \ // Load g0.sched.sp
+	N_AND $~15, N_SP                     \ // Align the stack to 16-bytes
+	CALL N_AP                            \ // Call the saved function
+	N_MOV N_C0, N_SP                       // Restore SP
+
 // Change the stack pointer to g0's stack and calls the first argument with the second argument.
 TEXT ·UnsafeCall1(SB), NOSPLIT, $0-0
-	N_MOV fn+0(FP), N_AP                 // Save the first argument as the function to call
-	N_MOV arg0+8(FP), N_A0               // Save the second argument
-	N_MOV N_GVAR, N_T1                   // Load g
-	N_MOV g_m(N_T1), N_T0                // Load g.m
-	N_MOV N_SP, N_C0                     // Save SP in a callee-saved register
-	N_MOV m_g0(N_T0), N_T1               // Load m.go
-	N_MOV (g_sched+gobuf_sp)(N_T1), N_SP // Load g0.sched.sp
-	N_AND $~15, N_SP                     // Align the stack to 16-bytes
-	CALL N_AP                            // Call the saved function
-	N_MOV N_C0, N_SP                     // Restore SP
+	N_SAVE
+	N_CENTER
+	RET
+
+TEXT ·UnsafeCall1r1(SB), NOSPLIT, $0-0
+	N_SAVE
+	N_CENTER
+	N_MOV N_AP, ret+16(FP)               // Place the return value on the stack
 	RET
