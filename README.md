@@ -6,8 +6,14 @@ It executes C on the "system stack" of the current thread running the current go
 
 ## Supported
 
-* OSes: `Windows`, `Linux` and `MacOS`.
-* Architechtures: `x86_64` and `ARM64`.
+|        | Window | MacOS | Linux |
+|--------|--------|-------|-------|
+| x86_64 | ✅      | ✅     | ✅     |
+| ARM64  | ❌      | ✅     | ❓     |
+
+✅ = Working and tested.  
+❓ = May work, unknown, no tests.  
+❌ = Not currently supported.
 
 ## Why?
 
@@ -48,7 +54,19 @@ func main() {
 }
 ```
 
-Also found [there](`example/main.go`) just in case.
+## API
+
+```go
+func UnsafeCall1(fn unsafe.Pointer, arg0 uintptr)
+func UnsafeCall2(fn unsafe.Pointer, arg0 uintptr, arg1 uintptr)
+func UnsafeCall3(fn unsafe.Pointer, arg0 uintptr, arg1 uintptr, arg2 uintptr)
+func UnsafeCall4(fn unsafe.Pointer, arg0 uintptr, arg1 uintptr, arg2 uintptr, arg3 uintptr)
+
+func UnsafeCall1Return1(fn unsafe.Pointer, arg0 uintptr) uintptr
+func UnsafeCall2Return1(fn unsafe.Pointer, arg0 uintptr, arg1 uintptr) uintptr
+func UnsafeCall3Return1(fn unsafe.Pointer, arg0 uintptr, arg1 uintptr, arg2 uintptr) uintptr
+func UnsafeCall4Return1(fn unsafe.Pointer, arg0 uintptr, arg1 uintptr, arg2 uintptr, arg3 uintptr) uintptr
+```
 
 ## License
 
