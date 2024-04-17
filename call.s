@@ -21,6 +21,7 @@
 	#define N_A3 R9
 	#define N_T0 R13
 	#define N_T1 R14
+	#define N_C0 R12
 	#define N_SP SP
 #else
 	#ifdef GOARCH_arm64
@@ -32,7 +33,7 @@
 		#define N_T0 R8
 		#define N_T1 R9
 		#define N_C0 R12
-		#define R_SP R13
+		#define N_SP R13
 	#else
 		#define N_AP AX
 		#define N_A0 DI
