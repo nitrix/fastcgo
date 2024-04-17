@@ -1,6 +1,7 @@
 package fastcgo_test
 
 import (
+	"fmt"
 	"os/exec"
 	"strings"
 	"testing"
@@ -20,6 +21,7 @@ func TestExample(t *testing.T) {
 	outputStr := strings.TrimSpace(string(outputBytes))
 
 	if outputStr != "42 26" {
+		fmt.Println("Got:", outputStr)
 		t.Fail()
 	}
 }
