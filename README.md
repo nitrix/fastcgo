@@ -1,8 +1,6 @@
 # fastcgo
 
-Fast (but unsafe) Cgo calls via an assembly trampoline. 
-
-It executes C on the "system stack" of the current thread running the current goroutine where it's invoked on. This completely makes the thread unsuitable for other purposes and doesn't play nice with the scheduler not the GC.
+Fast Cgo calls using an assembly trampoline. 
 
 ## Supported
 
@@ -15,13 +13,16 @@ It executes C on the "system stack" of the current thread running the current go
 ❓ = May work, unknown, no tests.  
 ❌ = Not currently supported.
 
+## Warning
+
+This is **very unsafe** and lets you call C using the current's goroutine thread's system stack internal to Go. It monopolizes the thread to itself and completly bypass the regular scheduler premptions. It also disrupts the GC while blocked inside C code. Use at your own risk.
+
 ## Why?
 
-Few reasons:
+Two reason:
 
 * Workaround for a [scheduling issue](https://dqlite.io/docs/explanation/faq#why-c-7) when the call lasts longer than 20 microseconds which is causing me visible stutter when calling [glfwSwapBuffers()](https://github.com/go-gl/glfw) with VSync enabled.
 * Bring down the [Cgo overhead](https://github.com/golang/go/issues/19574) from 50ns to 3ns (see below).
-* May unblock [others]() running into similar problems. 
 
 ## Benchmark
 
