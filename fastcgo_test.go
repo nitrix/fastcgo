@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"testing"
 )
 
@@ -26,7 +27,7 @@ func TestExample(t *testing.T) {
 		t.Fail()
 	}
 
-	output := buffer.String()
+	output := strings.TrimSpace(buffer.String())
 
 	if output != "Hello 42" {
 		fmt.Fprintln(os.Stderr, output)

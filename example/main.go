@@ -3,7 +3,7 @@ package main
 /*
 #include <stdio.h>
 void example(int x) {
-	printf("Hello %d", x);
+	printf("Hello %d\n", x);
 }
 */
 import "C"
