@@ -19,7 +19,7 @@ This is **very unsafe** and lets you call C using the current's goroutine thread
 
 ## Why?
 
-Two reason:
+Two reasons:
 
 * Workaround for a [scheduling issue](https://dqlite.io/docs/explanation/faq#why-c-7) when the call lasts longer than 20 microseconds which is causing me visible stutter when calling [glfwSwapBuffers()](https://github.com/go-gl/glfw) with VSync enabled.
 * Bring down the [Cgo overhead](https://github.com/golang/go/issues/19574) from 50ns to 3ns (see below).
