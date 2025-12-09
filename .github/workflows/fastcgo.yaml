@@ -6,7 +6,7 @@ on:
       - master
 
 jobs:
-  windows:
+  windowsAmd64:
     name: Windows (amd64)
     runs-on: windows-latest
     steps:
@@ -22,7 +22,23 @@ jobs:
         run: |
           go test
 
-  linux:
+  windowsArm64:
+    name: Windows (arm64)
+    runs-on: windows-11-arm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Verify Go
+        run: go version
+      - name: Test
+        run: |
+          go test
+
+  linuxAmd64:
     name: Linux (amd64)
     runs-on: ubuntu-latest
     steps:
@@ -38,7 +54,23 @@ jobs:
         run: |
           go test
 
-  macOSamd64:
+  linuxArm64:
+    name: Linux (arm64)
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Verify Go
+        run: go version
+      - name: Build
+        run: |
+          go test
+
+  macAmd64:
     name: MacOS (amd64)
     runs-on: macos-13
     steps:
@@ -54,9 +86,9 @@ jobs:
         run: |
           go test
 
-  macOSarm64:
+  macArm64:
     name: MacOS (arm64)
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
