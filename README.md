@@ -7,7 +7,7 @@ Fast Cgo calls using an assembly trampoline.
 |        | Window | MacOS | Linux |
 |--------|--------|-------|-------|
 | x86_64 | ✅      | ✅     | ✅     |
-| ARM64  | ❌      | ✅     | ❓     |
+| ARM64  | ✅      | ✅     | ❓     |
 
 ✅ = Working and tested.  
 ❓ = May work, unknown, no tests.  

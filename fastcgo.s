@@ -10,31 +10,31 @@
 // Register N_SP is for the stack pointer.
 // Register N_C0 is callee-saved.
 
-#ifdef GOOS_windows
-    #define N_LC AX
-    #define N_LR AX
-    #define N_A0 CX
-    #define N_A1 DX
-    #define N_A2 R8
-    #define N_A3 R9
-    #define N_T0 R13
-    #define N_T1 R14
+#ifdef GOARCH_arm64
+    #define N_LC R4
+    #define N_LR R0
+    #define N_A0 R0
+    #define N_A1 R1
+    #define N_A2 R2
+    #define N_A3 R3
+    #define N_T0 R8
+    #define N_T1 R9
     #define N_C0 R12
-    #define N_SP SP
+    #define N_SP R13
 #else
-    #ifdef GOARCH_arm64
-        #define N_LC R4
-        #define N_LR R0
-        #define N_A0 R0
-        #define N_A1 R1
-        #define N_A2 R2
-        #define N_A3 R3
-        #define N_T0 R8
-        #define N_T1 R9
+    #ifdef GOOS_windows
+        #define N_LC AX
+        #define N_LR AX
+        #define N_A0 CX
+        #define N_A1 DX
+        #define N_A2 R8
+        #define N_A3 R9
+        #define N_T0 R13
+        #define N_T1 R14
         #define N_C0 R12
-        #define N_SP R13
+        #define N_SP SP
     #else
-    	#define N_LC AX
+        #define N_LC AX
         #define N_LR AX
         #define N_A0 DI
         #define N_A1 SI
