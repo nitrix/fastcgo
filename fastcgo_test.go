@@ -10,11 +10,13 @@ import (
 func TestExample(t *testing.T) {
 	location, err := exec.LookPath("go")
 	if err != nil {
+		fmt.Println("Error:", err)
 		t.Fail()
 	}
 
 	outputBytes, err := exec.Command(location, "run", "./example").Output()
 	if err != nil {
+		fmt.Println("Error:", err)
 		t.Fail()
 	}
 
