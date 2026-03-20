@@ -1,9 +1,9 @@
-//go:build arm64 && !windows
+//go:build arm64
 
 #include "go_asm.h"
 #include "textflag.h"
 
-// arm64 native ABI on Linux and macOS:
+// arm64 native ABI on Linux and Windows:
 //   arg0..arg3 = R0..R3
 //   return     = R0
 //
@@ -11,10 +11,6 @@
 //   R4  = function pointer
 //   R10/R11 = temps (caller-saved, not argument registers)
 //   R19 = saved original SP (callee-saved in platform ABI, preserved across call)
-//
-// NOTE: Windows arm64 is excluded via build tag. The Go assembler reserves R18
-// (the Windows TEB pointer) and won't let us save/restore it, and the NOSPLIT
-// frameless functions here are incompatible with Windows SEH unwinding.
 
 #define UCALL_FN   R4
 #define UCALL_RET  R0
@@ -44,20 +40,20 @@
     CALL    UCALL_FN                                   \
     MOVD    UCALL_SSP, RSP
 
-TEXT ·UnsafeCall1(SB), NOSPLIT, $0-16
+TEXT ·UnsafeCall1(SB), $16-16
     MOVD    fn+0(FP), UCALL_FN
     MOVD    arg0+8(FP), UCALL_A0
     UCALL_BODY
     RET
 
-TEXT ·UnsafeCall2(SB), NOSPLIT, $0-24
+TEXT ·UnsafeCall2(SB), $16-24
     MOVD    fn+0(FP), UCALL_FN
     MOVD    arg0+8(FP), UCALL_A0
     MOVD    arg1+16(FP), UCALL_A1
     UCALL_BODY
     RET
 
-TEXT ·UnsafeCall3(SB), NOSPLIT, $0-32
+TEXT ·UnsafeCall3(SB), $16-32
     MOVD    fn+0(FP), UCALL_FN
     MOVD    arg0+8(FP), UCALL_A0
     MOVD    arg1+16(FP), UCALL_A1
@@ -65,7 +61,7 @@ TEXT ·UnsafeCall3(SB), NOSPLIT, $0-32
     UCALL_BODY
     RET
 
-TEXT ·UnsafeCall4(SB), NOSPLIT, $0-40
+TEXT ·UnsafeCall4(SB), $16-40
     MOVD    fn+0(FP), UCALL_FN
     MOVD    arg0+8(FP), UCALL_A0
     MOVD    arg1+16(FP), UCALL_A1
@@ -74,14 +70,14 @@ TEXT ·UnsafeCall4(SB), NOSPLIT, $0-40
     UCALL_BODY
     RET
 
-TEXT ·UnsafeCall1Return1(SB), NOSPLIT, $0-24
+TEXT ·UnsafeCall1Return1(SB), $16-24
     MOVD    fn+0(FP), UCALL_FN
     MOVD    arg0+8(FP), UCALL_A0
     UCALL_BODY
     MOVD    UCALL_RET, ret+16(FP)
     RET
 
-TEXT ·UnsafeCall2Return1(SB), NOSPLIT, $0-32
+TEXT ·UnsafeCall2Return1(SB), $16-32
     MOVD    fn+0(FP), UCALL_FN
     MOVD    arg0+8(FP), UCALL_A0
     MOVD    arg1+16(FP), UCALL_A1
@@ -89,7 +85,7 @@ TEXT ·UnsafeCall2Return1(SB), NOSPLIT, $0-32
     MOVD    UCALL_RET, ret+24(FP)
     RET
 
-TEXT ·UnsafeCall3Return1(SB), NOSPLIT, $0-40
+TEXT ·UnsafeCall3Return1(SB), $16-40
     MOVD    fn+0(FP), UCALL_FN
     MOVD    arg0+8(FP), UCALL_A0
     MOVD    arg1+16(FP), UCALL_A1
@@ -98,7 +94,7 @@ TEXT ·UnsafeCall3Return1(SB), NOSPLIT, $0-40
     MOVD    UCALL_RET, ret+32(FP)
     RET
 
-TEXT ·UnsafeCall4Return1(SB), NOSPLIT, $0-48
+TEXT ·UnsafeCall4Return1(SB), $16-48
     MOVD    fn+0(FP), UCALL_FN
     MOVD    arg0+8(FP), UCALL_A0
     MOVD    arg1+16(FP), UCALL_A1
