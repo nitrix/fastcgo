@@ -29,11 +29,11 @@
     MOVD    RSP, UCALL_TMP1                            \
     MOVD    UCALL_TMP1, (g_sched+gobuf_sp)(g)          \
     MOVD    R29, (g_sched+gobuf_bp)(g)                 \
-    MOVD    m_locks(UCALL_TMP0), UCALL_TMP1            \
+    MOVD    m_locks(R10), UCALL_TMP1                   \
     ADD     $1, UCALL_TMP1                             \
-    MOVD    UCALL_TMP1, m_locks(UCALL_TMP0)            \
+    MOVD    UCALL_TMP1, m_locks(R10)                   \
     MOVD    m_g0(UCALL_TMP0), UCALL_TMP1               \
-    MOVD    (g_sched+gobuf_sp)(UCALL_TMP1), UCALL_TMP0 \
+    MOVD    (g_sched+gobuf_sp)(R11), UCALL_TMP0        \
     MOVD    UCALL_TMP0, RSP                            \
     MOVD    RSP, UCALL_TMP0                            \
     MOVD    $15, UCALL_TMP1                            \
@@ -42,10 +42,10 @@
     CALL    UCALL_FN                                   \
     MOVD    UCALL_SSP, RSP                             \
     MOVD    g, UCALL_TMP1                              \
-    MOVD    g_m(UCALL_TMP1), UCALL_TMP0                \
-    MOVD    m_locks(UCALL_TMP0), UCALL_TMP1            \
+    MOVD    g_m(R11), UCALL_TMP0                       \
+    MOVD    m_locks(R10), UCALL_TMP1                   \
     SUB     $1, UCALL_TMP1                             \
-    MOVD    UCALL_TMP1, m_locks(UCALL_TMP0)
+    MOVD    UCALL_TMP1, m_locks(R10)
 
 TEXT ·UnsafeCall1(SB), NOSPLIT, $0-16
     MOVD    fn+0(FP), UCALL_FN
