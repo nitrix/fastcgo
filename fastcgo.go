@@ -1,3 +1,5 @@
+//go:build amd64 || (arm64 && !windows)
+
 package fastcgo
 
 import "unsafe"
