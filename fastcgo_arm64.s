@@ -3,14 +3,14 @@
 #include "go_asm.h"
 #include "textflag.h"
 
-// arm64 native ABI on Linux and Windows:
+// arm64 calling convention (same on Linux, macOS, Windows):
 //   arg0..arg3 = R0..R3
 //   return     = R0
 //
-// Using:
-//   R4  = function pointer
-//   R10/R11 = temps (caller-saved, not argument registers)
-//   R19 = saved original SP (callee-saved in platform ABI, preserved across call)
+// Register allocation:
+//   R4  = function pointer (callee-saved, survives the C call)
+//   R19 = saved original SP (callee-saved, survives the C call)
+//   R10/R11 = temps (caller-saved, used only before CALL)
 
 #define UCALL_FN   R4
 #define UCALL_RET  R0
@@ -22,30 +22,27 @@
 #define UCALL_TMP1 R11
 #define UCALL_SSP  R19
 
+// Mirror of the amd64 logic:
+//   1. Get current g from the dedicated register
+//   2. g -> m
+//   3. Save SP
+//   4. m -> g0
+//   5. Switch to g0's scheduler stack
+//   6. 16-byte align SP
+//   7. CALL
+//   8. Restore SP
 #define UCALL_BODY                                     \
     MOVD    g, UCALL_TMP1                              \
     MOVD    g_m(UCALL_TMP1), UCALL_TMP0                \
     MOVD    RSP, UCALL_SSP                             \
-    MOVD    RSP, UCALL_TMP1                            \
-    MOVD    UCALL_TMP1, (g_sched+gobuf_sp)(g)          \
-    MOVD    R29, (g_sched+gobuf_bp)(g)                 \
-    MOVD    m_locks(R10), UCALL_TMP1                   \
-    ADD     $1, UCALL_TMP1                             \
-    MOVD    UCALL_TMP1, m_locks(R10)                   \
     MOVD    m_g0(UCALL_TMP0), UCALL_TMP1               \
-    MOVD    (g_sched+gobuf_sp)(R11), UCALL_TMP0        \
-    MOVD    UCALL_TMP0, RSP                            \
+    MOVD    (g_sched+gobuf_sp)(UCALL_TMP1), RSP        \
     MOVD    RSP, UCALL_TMP0                            \
     MOVD    $15, UCALL_TMP1                            \
     BIC     UCALL_TMP1, UCALL_TMP0, UCALL_TMP0         \
     MOVD    UCALL_TMP0, RSP                            \
-    CALL    UCALL_FN                                   \
-    MOVD    UCALL_SSP, RSP                             \
-    MOVD    g, UCALL_TMP1                              \
-    MOVD    g_m(R11), UCALL_TMP0                       \
-    MOVD    m_locks(R10), UCALL_TMP1                   \
-    SUB     $1, UCALL_TMP1                             \
-    MOVD    UCALL_TMP1, m_locks(R10)
+    BL      (UCALL_FN)                                 \
+    MOVD    UCALL_SSP, RSP
 
 TEXT ·UnsafeCall1(SB), NOSPLIT, $0-16
     MOVD    fn+0(FP), UCALL_FN
