@@ -10,8 +10,11 @@
 // Register allocation:
 //   R4  = function pointer (callee-saved, survives the C call)
 //   R19 = saved original SP (callee-saved, survives the C call)
-//   R20 = pointer to m (callee-saved, survives the C call) [Windows only]
 //   R10/R11 = temps (caller-saved, used only before BL)
+//
+// Windows-only callee-saved registers:
+//   R20 = saved TEB StackBase
+//   R21 = saved TEB StackLimit
 
 #define UCALL_FN   R4
 #define UCALL_RET  R0
@@ -29,34 +32,27 @@
 // injection for async preemption. If it preempts us while we're
 // secretly running on g0's stack, it sees a corrupt state and hangs.
 //
-// Incrementing m.locks before the stack switch tells the runtime
-// "don't preempt this M". We save the m pointer in callee-saved
-// R20 so we can decrement m.locks after the call without needing
-// to re-derive it through temp registers.
+// We increment m.locks to disable preemption and update the TEB
+// stack bounds so Windows won't fault on stack guard page checks.
 //
-// We also update the TEB stack bounds (StackBase at +0x08, StackLimit
-// at +0x10, via R18_PLATFORM) so Windows won't fault on stack guard
-// page checks when SP is on g0's stack. Old values are saved in
-// callee-saved R21/R22.
-
-#define UCALL_SAVED_M    R20
-#define UCALL_SAVED_TEBB R21
-#define UCALL_SAVED_TEBL R22
+// All runtime struct field accesses (g_m, m_locks, m_g0, etc.) go
+// through the g pseudo-register, since Go's assembler only allows
+// that syntax with g. We re-derive m from g after the call for the
+// m.locks decrement.
 
 #define UCALL_BODY                                          \
-    /* g -> m, save m in callee-saved R20 */                \
-    MOVD    g_m(g), UCALL_SAVED_M                           \
-    /* m.locks++ (disable preemption) */                    \
-    MOVW    m_locks(UCALL_SAVED_M), UCALL_TMP1              \
+    /* g -> m -> m.locks++ */                               \
+    MOVD    g_m(g), UCALL_TMP0                              \
+    MOVW    m_locks(UCALL_TMP0), UCALL_TMP1                 \
     ADDW    $1, UCALL_TMP1                                  \
-    MOVW    UCALL_TMP1, m_locks(UCALL_SAVED_M)              \
+    MOVW    UCALL_TMP1, m_locks(UCALL_TMP0)                 \
     /* Save original SP */                                  \
     MOVD    RSP, UCALL_SSP                                  \
-    /* Save old TEB stack bounds */                         \
-    MOVD    0x08(R18_PLATFORM), UCALL_SAVED_TEBB            \
-    MOVD    0x10(R18_PLATFORM), UCALL_SAVED_TEBL            \
-    /* Get g0 */                                            \
-    MOVD    m_g0(UCALL_SAVED_M), UCALL_TMP1                 \
+    /* Save old TEB stack bounds in callee-saved regs */    \
+    MOVD    0x08(R18_PLATFORM), R20                         \
+    MOVD    0x10(R18_PLATFORM), R21                         \
+    /* Get g0 (m still in UCALL_TMP0) */                    \
+    MOVD    m_g0(UCALL_TMP0), UCALL_TMP1                    \
     /* Write g0 stack bounds to TEB */                      \
     MOVD    (g_stack+stack_hi)(UCALL_TMP1), UCALL_TMP0      \
     MOVD    UCALL_TMP0, 0x08(R18_PLATFORM)                  \
@@ -72,14 +68,15 @@
     /* Call the C function */                               \
     BL      (UCALL_FN)                                      \
     /* Restore TEB stack bounds */                          \
-    MOVD    UCALL_SAVED_TEBB, 0x08(R18_PLATFORM)            \
-    MOVD    UCALL_SAVED_TEBL, 0x10(R18_PLATFORM)            \
+    MOVD    R20, 0x08(R18_PLATFORM)                         \
+    MOVD    R21, 0x10(R18_PLATFORM)                         \
     /* Restore original SP */                               \
     MOVD    UCALL_SSP, RSP                                  \
-    /* m.locks-- (re-enable preemption), m still in R20 */  \
-    MOVW    m_locks(UCALL_SAVED_M), UCALL_TMP1              \
+    /* g -> m -> m.locks-- (re-derive m from g) */          \
+    MOVD    g_m(g), UCALL_TMP0                              \
+    MOVW    m_locks(UCALL_TMP0), UCALL_TMP1                 \
     SUBW    $1, UCALL_TMP1                                  \
-    MOVW    UCALL_TMP1, m_locks(UCALL_SAVED_M)
+    MOVW    UCALL_TMP1, m_locks(UCALL_TMP0)
 
 #else
 
