@@ -39,16 +39,16 @@
 #define UCALL_TMP1 R14
 #define UCALL_SSP  R12
 
-#define UCALL_BODY                         \
-    MOVQ    (TLS), UCALL_TMP1;             /* load g */              \
-    MOVQ    g_m(UCALL_TMP1), UCALL_TMP0;   /* load g.m */            \
-    MOVQ    SP, UCALL_SSP;                 /* save current SP */     \
-    MOVQ    m_g0(UCALL_TMP0), UCALL_TMP1;  /* load m.g0 */           \
-    MOVQ    (g_sched+gobuf_sp)(UCALL_TMP1), SP; /* g0.sched.sp */    \
-    ANDQ    $~15, SP;                      /* align stack */         \
-    SUBQ    $32, SP;                       /* reserve shadow */      \
-    CALL    UCALL_FN;                      /* call fn */             \
-    MOVQ    UCALL_SSP, SP                  /* restore SP */
+#define UCALL_BODY                              \
+    MOVQ    (TLS), UCALL_TMP1;                  \
+    MOVQ    g_m(UCALL_TMP1), UCALL_TMP0;        \
+    MOVQ    SP, UCALL_SSP;                      \
+    MOVQ    m_g0(UCALL_TMP0), UCALL_TMP1;       \
+    MOVQ    (g_sched+gobuf_sp)(UCALL_TMP1), SP; \
+    ANDQ    $~15, SP;                           \
+    SUBQ    $32, SP;                            \
+    CALL    UCALL_FN;                           \
+    MOVQ    UCALL_SSP, SP                  
 
 TEXT ·UnsafeCall1(SB), NOSPLIT, $0-16
     MOVQ    fn+0(FP), UCALL_FN
