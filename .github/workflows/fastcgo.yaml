@@ -82,7 +82,18 @@ jobs:
           go-version: stable
       - name: Verify Go
         run: go version
+      - name: Install llvm-mingw
+        shell: pwsh
+        run: |
+          $version = "20260311"
+          $url = "https://github.com/mstorsjo/llvm-mingw/releases/download/$version/llvm-mingw-$version-ucrt-aarch64.zip"
+          Invoke-WebRequest -Uri $url -OutFile llvm-mingw.zip
+          Expand-Archive llvm-mingw.zip -DestinationPath C:\llvm-mingw
+          $dir = (Get-ChildItem C:\llvm-mingw -Directory)[0].FullName
+          echo "$dir\bin" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
       - name: Build
+        env:
+          CC: aarch64-w64-mingw32-clang
         run: |
           go test
 
