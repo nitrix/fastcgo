@@ -1,21 +1,18 @@
 //go:build arm64
- 
+
 #include "go_asm.h"
 #include "textflag.h"
- 
-// arm64 calling convention (same on Linux, macOS, Windows):
+
+// arm64 native ABI on Linux and Windows:
 //   arg0..arg3 = R0..R3
 //   return     = R0
 //
-// Register allocation:
-//   R4  = function pointer (callee-saved, survives the C call)
-//   R19 = saved original SP (callee-saved, survives the C call)
-//   R10/R11 = temps (caller-saved, used only before BL)
-//
-// Windows-only callee-saved registers:
-//   R20 = saved TEB StackBase
-//   R21 = saved TEB StackLimit
- 
+// Using:
+//   R4  = function pointer
+//   R10/R11 = temps (caller-saved, not argument registers)
+//   R19 = saved original SP (callee-saved in platform ABI, preserved across call)
+//   R20 = saved R18 / TEB pointer (callee-saved; Windows arm64 reserves R18 for TEB)
+
 #define UCALL_FN   R4
 #define UCALL_RET  R0
 #define UCALL_A0   R0
@@ -25,82 +22,41 @@
 #define UCALL_TMP0 R10
 #define UCALL_TMP1 R11
 #define UCALL_SSP  R19
- 
-#ifdef GOOS_windows
- 
-// On Windows arm64, we must:
-// 1. Disable async preemption (m.locks++) so the runtime's
-//    SuspendThread mechanism doesn't catch us on g0's stack.
-//    Done via BL to ·incMLocks / ·decMLocks helper stubs
-//    (in fastcgo_mlocks_windows_arm64.s) which can use the
-//    g pseudo-register for runtime struct field access.
-// 2. Update TEB stack bounds so Windows doesn't fault on
-//    stack guard page checks when SP is on g0's stack.
- 
-#define UCALL_BODY                                          \
-    /* Disable preemption (clobbers R10, R11) */            \
-    BL      ·incMLocks(SB)                                  \
-    /* Save original SP */                                  \
-    MOVD    RSP, UCALL_SSP                                  \
-    /* Save old TEB stack bounds in callee-saved regs */    \
-    MOVD    0x08(R18_PLATFORM), R20                         \
-    MOVD    0x10(R18_PLATFORM), R21                         \
-    /* Get m -> g0 */                                       \
-    MOVD    g_m(g), UCALL_TMP0                              \
-    MOVD    m_g0(UCALL_TMP0), UCALL_TMP1                    \
-    /* Write g0 stack bounds to TEB */                      \
-    MOVD    (g_stack+stack_hi)(UCALL_TMP1), UCALL_TMP0      \
-    MOVD    UCALL_TMP0, 0x08(R18_PLATFORM)                  \
-    MOVD    (g_stack+stack_lo)(UCALL_TMP1), UCALL_TMP0      \
-    MOVD    UCALL_TMP0, 0x10(R18_PLATFORM)                  \
-    /* Switch to g0's scheduler stack */                    \
-    MOVD    (g_sched+gobuf_sp)(UCALL_TMP1), UCALL_TMP0      \
-    MOVD    UCALL_TMP0, RSP                                 \
-    /* 16-byte align */                                     \
-    MOVD    $15, UCALL_TMP1                                 \
-    BIC     UCALL_TMP1, UCALL_TMP0, UCALL_TMP0              \
-    MOVD    UCALL_TMP0, RSP                                 \
-    /* Call the C function */                               \
-    BL      (UCALL_FN)                                      \
-    /* Restore TEB stack bounds */                          \
-    MOVD    R20, 0x08(R18_PLATFORM)                         \
-    MOVD    R21, 0x10(R18_PLATFORM)                         \
-    /* Restore original SP */                               \
-    MOVD    UCALL_SSP, RSP                                  \
-    /* Re-enable preemption (clobbers R10, R11) */          \
-    BL      ·decMLocks(SB)
- 
-#else
- 
-// Unix-like (Linux, macOS, BSD): straightforward g0 stack switch.
- 
-#define UCALL_BODY                                          \
-    MOVD    g_m(g), UCALL_TMP0                              \
-    MOVD    RSP, UCALL_SSP                                  \
-    MOVD    m_g0(UCALL_TMP0), UCALL_TMP1                    \
-    MOVD    (g_sched+gobuf_sp)(UCALL_TMP1), UCALL_TMP0      \
-    MOVD    UCALL_TMP0, RSP                                 \
-    MOVD    $15, UCALL_TMP1                                 \
-    BIC     UCALL_TMP1, UCALL_TMP0, UCALL_TMP0              \
-    MOVD    UCALL_TMP0, RSP                                 \
-    BL      (UCALL_FN)                                      \
+#define UCALL_STEB R20
+
+#define UCALL_BODY                                     \
+    MOVD    g, UCALL_TMP1                              \
+    MOVD    g_m(UCALL_TMP1), UCALL_TMP0                \
+    MOVD    RSP, UCALL_SSP                             \
+    MOVD    RSP, UCALL_TMP1                            \
+    MOVD    UCALL_TMP1, (g_sched+gobuf_sp)(g)          \
+    MOVD    R29, (g_sched+gobuf_bp)(g)                 \
+    MOVD    g_m(g), UCALL_TMP0                         \
+    MOVD    m_g0(UCALL_TMP0), UCALL_TMP1               \
+    MOVD    (g_sched+gobuf_sp)(UCALL_TMP1), UCALL_TMP0 \
+    MOVD    UCALL_TMP0, RSP                            \
+    MOVD    RSP, UCALL_TMP0                            \
+    MOVD    $15, UCALL_TMP1                            \
+    BIC     UCALL_TMP1, UCALL_TMP0, UCALL_TMP0         \
+    MOVD    UCALL_TMP0, RSP                            \
+    MOVD    R18, UCALL_STEB                            \
+    CALL    UCALL_FN                                   \
+    MOVD    UCALL_STEB, R18                            \
     MOVD    UCALL_SSP, RSP
- 
-#endif
- 
+
 TEXT ·UnsafeCall1(SB), NOSPLIT, $0-16
     MOVD    fn+0(FP), UCALL_FN
     MOVD    arg0+8(FP), UCALL_A0
     UCALL_BODY
     RET
- 
+
 TEXT ·UnsafeCall2(SB), NOSPLIT, $0-24
     MOVD    fn+0(FP), UCALL_FN
     MOVD    arg0+8(FP), UCALL_A0
     MOVD    arg1+16(FP), UCALL_A1
     UCALL_BODY
     RET
- 
+
 TEXT ·UnsafeCall3(SB), NOSPLIT, $0-32
     MOVD    fn+0(FP), UCALL_FN
     MOVD    arg0+8(FP), UCALL_A0
@@ -108,7 +64,7 @@ TEXT ·UnsafeCall3(SB), NOSPLIT, $0-32
     MOVD    arg2+24(FP), UCALL_A2
     UCALL_BODY
     RET
- 
+
 TEXT ·UnsafeCall4(SB), NOSPLIT, $0-40
     MOVD    fn+0(FP), UCALL_FN
     MOVD    arg0+8(FP), UCALL_A0
@@ -117,14 +73,14 @@ TEXT ·UnsafeCall4(SB), NOSPLIT, $0-40
     MOVD    arg3+32(FP), UCALL_A3
     UCALL_BODY
     RET
- 
+
 TEXT ·UnsafeCall1Return1(SB), NOSPLIT, $0-24
     MOVD    fn+0(FP), UCALL_FN
     MOVD    arg0+8(FP), UCALL_A0
     UCALL_BODY
     MOVD    UCALL_RET, ret+16(FP)
     RET
- 
+
 TEXT ·UnsafeCall2Return1(SB), NOSPLIT, $0-32
     MOVD    fn+0(FP), UCALL_FN
     MOVD    arg0+8(FP), UCALL_A0
@@ -132,7 +88,7 @@ TEXT ·UnsafeCall2Return1(SB), NOSPLIT, $0-32
     UCALL_BODY
     MOVD    UCALL_RET, ret+24(FP)
     RET
- 
+
 TEXT ·UnsafeCall3Return1(SB), NOSPLIT, $0-40
     MOVD    fn+0(FP), UCALL_FN
     MOVD    arg0+8(FP), UCALL_A0
@@ -141,7 +97,7 @@ TEXT ·UnsafeCall3Return1(SB), NOSPLIT, $0-40
     UCALL_BODY
     MOVD    UCALL_RET, ret+32(FP)
     RET
- 
+
 TEXT ·UnsafeCall4Return1(SB), NOSPLIT, $0-48
     MOVD    fn+0(FP), UCALL_FN
     MOVD    arg0+8(FP), UCALL_A0
@@ -151,4 +107,3 @@ TEXT ·UnsafeCall4Return1(SB), NOSPLIT, $0-48
     UCALL_BODY
     MOVD    UCALL_RET, ret+40(FP)
     RET
- 
