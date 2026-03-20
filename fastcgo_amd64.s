@@ -25,7 +25,7 @@
     #define UCALL_A1   DX
     #define UCALL_A2   R8
     #define UCALL_A3   R9
-    #define UCALL_SHADOW  SUBQ $32, SP;
+    #define UCALL_SHADOW  SUBQ $32, SP
 #else
     #define UCALL_FN   AX
     #define UCALL_RET  AX
@@ -75,4 +75,42 @@ TEXT ·UnsafeCall3(SB), NOSPLIT, $0-32
 TEXT ·UnsafeCall4(SB), NOSPLIT, $0-40
     MOVQ    fn+0(FP), UCALL_FN
     MOVQ    arg0+8(FP), UCALL_A0
-    MOVQ    arg1+16(FP
+    MOVQ    arg1+16(FP), UCALL_A1
+    MOVQ    arg2+24(FP), UCALL_A2
+    MOVQ    arg3+32(FP), UCALL_A3
+    UCALL_BODY
+    RET
+
+TEXT ·UnsafeCall1Return1(SB), NOSPLIT, $0-24
+    MOVQ    fn+0(FP), UCALL_FN
+    MOVQ    arg0+8(FP), UCALL_A0
+    UCALL_BODY
+    MOVQ    UCALL_RET, ret+16(FP)
+    RET
+
+TEXT ·UnsafeCall2Return1(SB), NOSPLIT, $0-32
+    MOVQ    fn+0(FP), UCALL_FN
+    MOVQ    arg0+8(FP), UCALL_A0
+    MOVQ    arg1+16(FP), UCALL_A1
+    UCALL_BODY
+    MOVQ    UCALL_RET, ret+24(FP)
+    RET
+
+TEXT ·UnsafeCall3Return1(SB), NOSPLIT, $0-40
+    MOVQ    fn+0(FP), UCALL_FN
+    MOVQ    arg0+8(FP), UCALL_A0
+    MOVQ    arg1+16(FP), UCALL_A1
+    MOVQ    arg2+24(FP), UCALL_A2
+    UCALL_BODY
+    MOVQ    UCALL_RET, ret+32(FP)
+    RET
+
+TEXT ·UnsafeCall4Return1(SB), NOSPLIT, $0-48
+    MOVQ    fn+0(FP), UCALL_FN
+    MOVQ    arg0+8(FP), UCALL_A0
+    MOVQ    arg1+16(FP), UCALL_A1
+    MOVQ    arg2+24(FP), UCALL_A2
+    MOVQ    arg3+32(FP), UCALL_A3
+    UCALL_BODY
+    MOVQ    UCALL_RET, ret+40(FP)
+    RET
