@@ -28,30 +28,31 @@
 
 #ifdef GOOS_windows
 
-// On Windows arm64, the Go runtime uses SuspendThread + context
-// injection for async preemption. If it preempts us while we're
-// secretly running on g0's stack, it sees a corrupt state and hangs.
+// On Windows arm64, we must:
+// 1. Disable async preemption (m.locks++) so the runtime's
+//    SuspendThread mechanism doesn't catch us on g0's stack.
+// 2. Update TEB stack bounds so Windows doesn't fault on
+//    stack guard page checks.
 //
-// We increment m.locks to disable preemption and update the TEB
-// stack bounds so Windows won't fault on stack guard page checks.
-//
-// All runtime struct field accesses (g_m, m_locks, m_g0, etc.) go
-// through the g pseudo-register, since Go's assembler only allows
-// that syntax with g. We re-derive m from g after the call for the
-// m.locks decrement.
+// Go's assembler only allows runtime struct field syntax like
+// m_locks(Rn) with the g pseudo-register. For other registers
+// we compute the address explicitly with ADD.
 
 #define UCALL_BODY                                          \
-    /* g -> m -> m.locks++ */                               \
+    /* g -> m into R10 */                                   \
     MOVD    g_m(g), UCALL_TMP0                              \
-    MOVW    m_locks(UCALL_TMP0), UCALL_TMP1                 \
-    ADDW    $1, UCALL_TMP1                                  \
-    MOVW    UCALL_TMP1, m_locks(UCALL_TMP0)                 \
+    /* m.locks++ via explicit offset */                     \
+    ADD     $m_locks, UCALL_TMP0, UCALL_TMP1                \
+    MOVW    (UCALL_TMP1), UCALL_TMP0                        \
+    ADDW    $1, UCALL_TMP0                                  \
+    MOVW    UCALL_TMP0, (UCALL_TMP1)                        \
     /* Save original SP */                                  \
     MOVD    RSP, UCALL_SSP                                  \
     /* Save old TEB stack bounds in callee-saved regs */    \
     MOVD    0x08(R18_PLATFORM), R20                         \
     MOVD    0x10(R18_PLATFORM), R21                         \
-    /* Get g0 (m still in UCALL_TMP0) */                    \
+    /* Get m again, then g0 */                              \
+    MOVD    g_m(g), UCALL_TMP0                              \
     MOVD    m_g0(UCALL_TMP0), UCALL_TMP1                    \
     /* Write g0 stack bounds to TEB */                      \
     MOVD    (g_stack+stack_hi)(UCALL_TMP1), UCALL_TMP0      \
@@ -72,11 +73,12 @@
     MOVD    R21, 0x10(R18_PLATFORM)                         \
     /* Restore original SP */                               \
     MOVD    UCALL_SSP, RSP                                  \
-    /* g -> m -> m.locks-- (re-derive m from g) */          \
+    /* g -> m -> m.locks-- via explicit offset */            \
     MOVD    g_m(g), UCALL_TMP0                              \
-    MOVW    m_locks(UCALL_TMP0), UCALL_TMP1                 \
-    SUBW    $1, UCALL_TMP1                                  \
-    MOVW    UCALL_TMP1, m_locks(UCALL_TMP0)
+    ADD     $m_locks, UCALL_TMP0, UCALL_TMP1                \
+    MOVW    (UCALL_TMP1), UCALL_TMP0                        \
+    SUBW    $1, UCALL_TMP0                                  \
+    MOVW    UCALL_TMP0, (UCALL_TMP1)
 
 #else
 
