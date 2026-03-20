@@ -39,15 +39,21 @@
 #define UCALL_TMP1 R14
 #define UCALL_SSP  R12
 
-#define UCALL_BODY                              \
-    MOVQ    (TLS), UCALL_TMP1;                  \
-    MOVQ    g_m(UCALL_TMP1), UCALL_TMP0;        \
-    MOVQ    SP, UCALL_SSP;                      \
-    MOVQ    m_g0(UCALL_TMP0), UCALL_TMP1;       \
-    MOVQ    (g_sched+gobuf_sp)(UCALL_TMP1), SP; \
-    ANDQ    $~15, SP;                           \
-    SUBQ    $32, SP;                            \
-    CALL    UCALL_FN;                           \
+#ifdef GOOS_windows
+#define UCALL_SHADOW  SUBQ $32, SP
+#else
+#define UCALL_SHADOW
+#endif
+
+#define UCALL_BODY                             \
+    MOVQ    (TLS), UCALL_TMP1                  \
+    MOVQ    g_m(UCALL_TMP1), UCALL_TMP0        \
+    MOVQ    SP, UCALL_SSP                      \
+    MOVQ    m_g0(UCALL_TMP0), UCALL_TMP1       \
+    MOVQ    (g_sched+gobuf_sp)(UCALL_TMP1), SP \
+    ANDQ    $~15, SP                           \
+    UCALL_SHADOW                               \
+    CALL    UCALL_FN                           \
     MOVQ    UCALL_SSP, SP                  
 
 TEXT ·UnsafeCall1(SB), NOSPLIT, $0-16
