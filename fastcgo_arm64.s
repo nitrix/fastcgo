@@ -9,8 +9,8 @@
 //
 // Using:
 //   R4  = function pointer
-//   R8/R9 = temps
-//   R19 = saved original SP (callee-saved in platform ABI)
+//   R10/R11 = temps (caller-saved, not argument registers)
+//   R19 = saved original SP (callee-saved in platform ABI, preserved across call)
 
 #define UCALL_FN   R4
 #define UCALL_RET  R0
@@ -18,8 +18,8 @@
 #define UCALL_A1   R1
 #define UCALL_A2   R2
 #define UCALL_A3   R3
-#define UCALL_TMP0 R8
-#define UCALL_TMP1 R9
+#define UCALL_TMP0 R10
+#define UCALL_TMP1 R11
 #define UCALL_SSP  R19
 
 #define UCALL_BODY                              \
