@@ -40,7 +40,7 @@ jobs:
 
   macOSamd64:
     name: MacOS (amd64)
-    runs-on: macos-13
+    runs-on: macos-26-intel
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -57,6 +57,38 @@ jobs:
   macOSarm64:
     name: MacOS (arm64)
     runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Verify Go
+        run: go version
+      - name: Build
+        run: |
+          go test
+
+  windowsArm64:
+    name: Windows (arm64)
+    runs-on: windows-11-arm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Verify Go
+        run: go version
+      - name: Build
+        run: |
+          go test
+
+  linuxArm64:
+    name: Linux (arm64)
+    runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout
         uses: actions/checkout@v4
