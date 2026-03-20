@@ -35,29 +35,27 @@
 //    stack guard page checks.
 //
 // Go's plan9 assembler only allows runtime struct field syntax
-// (like m_locks, g_m, m_g0, etc.) with the g pseudo-register.
-// To access m.locks, we temporarily swap g to point at m,
-// read/write m_locks(g), then restore g.
+// with the g pseudo-register. To access m.locks we load m via
+// g_m(g), compute &m.locks = m + m_locks using MOVD $m_locks
+// to get the offset, then use register-indexed addressing.
 
 // INC_M_LOCKS: increments m.locks. Clobbers R10, R11.
 #define INC_M_LOCKS                                         \
-    MOVD    g_m(g), UCALL_TMP0      /* R10 = m */          \
-    MOVD    g, UCALL_TMP1           /* R11 = save g */      \
-    MOVD    UCALL_TMP0, g           /* g = m */             \
-    MOVW    m_locks(g), UCALL_TMP0  /* R10 = m.locks */     \
+    MOVD    g_m(g), UCALL_TMP0                              \
+    MOVD    $m_locks, UCALL_TMP1                            \
+    ADD     UCALL_TMP1, UCALL_TMP0, UCALL_TMP1              \
+    MOVW    (UCALL_TMP1), UCALL_TMP0                        \
     ADDW    $1, UCALL_TMP0                                  \
-    MOVW    UCALL_TMP0, m_locks(g)  /* m.locks = R10 */     \
-    MOVD    UCALL_TMP1, g           /* restore g */
+    MOVW    UCALL_TMP0, (UCALL_TMP1)
 
 // DEC_M_LOCKS: decrements m.locks. Clobbers R10, R11.
 #define DEC_M_LOCKS                                         \
-    MOVD    g_m(g), UCALL_TMP0      /* R10 = m */          \
-    MOVD    g, UCALL_TMP1           /* R11 = save g */      \
-    MOVD    UCALL_TMP0, g           /* g = m */             \
-    MOVW    m_locks(g), UCALL_TMP0  /* R10 = m.locks */     \
+    MOVD    g_m(g), UCALL_TMP0                              \
+    MOVD    $m_locks, UCALL_TMP1                            \
+    ADD     UCALL_TMP1, UCALL_TMP0, UCALL_TMP1              \
+    MOVW    (UCALL_TMP1), UCALL_TMP0                        \
     SUBW    $1, UCALL_TMP0                                  \
-    MOVW    UCALL_TMP0, m_locks(g)  /* m.locks = R10 */     \
-    MOVD    UCALL_TMP1, g           /* restore g */
+    MOVW    UCALL_TMP0, (UCALL_TMP1)
 
 #define UCALL_BODY                                          \
     /* Disable preemption */                                \
