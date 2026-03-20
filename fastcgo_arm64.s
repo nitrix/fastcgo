@@ -10,11 +10,8 @@
 // Register allocation:
 //   R4  = function pointer (callee-saved, survives the C call)
 //   R19 = saved original SP (callee-saved, survives the C call)
+//   R20 = pointer to m (callee-saved, survives the C call) [Windows only]
 //   R10/R11 = temps (caller-saved, used only before BL)
-//
-// Windows-only additional callee-saved registers:
-//   R20 = saved TEB StackBase
-//   R21 = saved TEB StackLimit
 
 #define UCALL_FN   R4
 #define UCALL_RET  R0
@@ -28,34 +25,38 @@
 
 #ifdef GOOS_windows
 
-// On Windows arm64, two extra things are needed beyond a simple g0 stack switch:
+// On Windows arm64, the Go runtime uses SuspendThread + context
+// injection for async preemption. If it preempts us while we're
+// secretly running on g0's stack, it sees a corrupt state and hangs.
 //
-// 1. Disable async preemption by incrementing m.locks. Windows uses
-//    SuspendThread + context injection for preemption. If the runtime
-//    preempts us while we're secretly on g0's stack, it will see a
-//    corrupt state and hang/crash. Incrementing m.locks tells the
-//    runtime "don't preempt this M".
+// Incrementing m.locks before the stack switch tells the runtime
+// "don't preempt this M". We save the m pointer in callee-saved
+// R20 so we can decrement m.locks after the call without needing
+// to re-derive it through temp registers.
 //
-// 2. Update the TEB stack bounds (StackBase at +0x08, StackLimit at
-//    +0x10, accessed via R18_PLATFORM). Windows validates SP against
-//    these bounds for stack guard page handling. g0's stack is not
-//    registered with the TEB, so we must temporarily update them.
+// We also update the TEB stack bounds (StackBase at +0x08, StackLimit
+// at +0x10, via R18_PLATFORM) so Windows won't fault on stack guard
+// page checks when SP is on g0's stack. Old values are saved in
+// callee-saved R21/R22.
+
+#define UCALL_SAVED_M    R20
+#define UCALL_SAVED_TEBB R21
+#define UCALL_SAVED_TEBL R22
 
 #define UCALL_BODY                                          \
-    /* g -> m (keep m in UCALL_TMP0 for later) */           \
-    MOVD    g, UCALL_TMP1                                   \
-    MOVD    g_m(UCALL_TMP1), UCALL_TMP0                     \
+    /* g -> m, save m in callee-saved R20 */                \
+    MOVD    g_m(g), UCALL_SAVED_M                           \
     /* m.locks++ (disable preemption) */                    \
-    MOVW    m_locks(UCALL_TMP0), UCALL_TMP1                 \
+    MOVW    m_locks(UCALL_SAVED_M), UCALL_TMP1              \
     ADDW    $1, UCALL_TMP1                                  \
-    MOVW    UCALL_TMP1, m_locks(UCALL_TMP0)                 \
+    MOVW    UCALL_TMP1, m_locks(UCALL_SAVED_M)              \
     /* Save original SP */                                  \
     MOVD    RSP, UCALL_SSP                                  \
     /* Save old TEB stack bounds */                         \
-    MOVD    0x08(R18_PLATFORM), R20                         \
-    MOVD    0x10(R18_PLATFORM), R21                         \
+    MOVD    0x08(R18_PLATFORM), UCALL_SAVED_TEBB            \
+    MOVD    0x10(R18_PLATFORM), UCALL_SAVED_TEBL            \
     /* Get g0 */                                            \
-    MOVD    m_g0(UCALL_TMP0), UCALL_TMP1                    \
+    MOVD    m_g0(UCALL_SAVED_M), UCALL_TMP1                 \
     /* Write g0 stack bounds to TEB */                      \
     MOVD    (g_stack+stack_hi)(UCALL_TMP1), UCALL_TMP0      \
     MOVD    UCALL_TMP0, 0x08(R18_PLATFORM)                  \
@@ -71,26 +72,21 @@
     /* Call the C function */                               \
     BL      (UCALL_FN)                                      \
     /* Restore TEB stack bounds */                          \
-    MOVD    R20, 0x08(R18_PLATFORM)                         \
-    MOVD    R21, 0x10(R18_PLATFORM)                         \
+    MOVD    UCALL_SAVED_TEBB, 0x08(R18_PLATFORM)            \
+    MOVD    UCALL_SAVED_TEBL, 0x10(R18_PLATFORM)            \
     /* Restore original SP */                               \
     MOVD    UCALL_SSP, RSP                                  \
-    /* m.locks-- (re-enable preemption) */                  \
-    MOVD    g, UCALL_TMP1                                   \
-    MOVD    g_m(UCALL_TMP1), UCALL_TMP0                     \
-    MOVW    m_locks(UCALL_TMP0), UCALL_TMP1                 \
+    /* m.locks-- (re-enable preemption), m still in R20 */  \
+    MOVW    m_locks(UCALL_SAVED_M), UCALL_TMP1              \
     SUBW    $1, UCALL_TMP1                                  \
-    MOVW    UCALL_TMP1, m_locks(UCALL_TMP0)
+    MOVW    UCALL_TMP1, m_locks(UCALL_SAVED_M)
 
 #else
 
 // Unix-like (Linux, macOS, BSD): straightforward g0 stack switch.
-// No TEB to worry about, and async preemption uses signals which
-// are blocked during cgo calls by the runtime's signal mask.
 
 #define UCALL_BODY                                          \
-    MOVD    g, UCALL_TMP1                                   \
-    MOVD    g_m(UCALL_TMP1), UCALL_TMP0                     \
+    MOVD    g_m(g), UCALL_TMP0                              \
     MOVD    RSP, UCALL_SSP                                  \
     MOVD    m_g0(UCALL_TMP0), UCALL_TMP1                    \
     MOVD    (g_sched+gobuf_sp)(UCALL_TMP1), UCALL_TMP0      \
