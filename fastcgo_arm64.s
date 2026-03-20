@@ -22,15 +22,18 @@
 #define UCALL_TMP1 R11
 #define UCALL_SSP  R19
 
-#define UCALL_BODY                              \
-    MOVD    g, UCALL_TMP1;                      \
-    MOVD    g_m(UCALL_TMP1), UCALL_TMP0         \
-    MOVD    RSP, UCALL_SSP                      \
-    MOVD    m_g0(UCALL_TMP0), UCALL_TMP1        \
-    MOVD    (g_sched+gobuf_sp)(UCALL_TMP1), RSP \
-    MOVD    $15, UCALL_TMP0                     \
-    BIC     UCALL_TMP0, RSP, RSP                \
-    CALL    UCALL_FN                            \
+#define UCALL_BODY                                     \
+    MOVD    g, UCALL_TMP1                              \
+    MOVD    g_m(UCALL_TMP1), UCALL_TMP0                \
+    MOVD    RSP, UCALL_SSP                             \
+    MOVD    m_g0(UCALL_TMP0), UCALL_TMP1               \
+    MOVD    (g_sched+gobuf_sp)(UCALL_TMP1), UCALL_TMP0 \
+    MOVD    UCALL_TMP0, RSP                            \
+    MOVD    RSP, UCALL_TMP0                            \
+    MOVD    $15, UCALL_TMP1                            \
+    BIC     UCALL_TMP1, UCALL_TMP0, UCALL_TMP0         \
+    MOVD    UCALL_TMP0, RSP                            \
+    CALL    UCALL_FN                                   \
     MOVD    UCALL_SSP, RSP
 
 TEXT ·UnsafeCall1(SB), NOSPLIT, $0-16
