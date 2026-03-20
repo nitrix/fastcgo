@@ -22,23 +22,14 @@
 #define UCALL_TMP1 R11
 #define UCALL_SSP  R19
 
-#ifdef GOOS_windows
-#define UCALL_SAVE_FRAME    \
-    MOVD    LR, -8(RSP);   \
-    MOVD    R29, -16(RSP); \
-    SUB     $16, RSP;
-#define UCALL_RESTORE_FRAME \
-    ADD     $16, RSP;       \
-    MOVD    -8(RSP), LR;
-#else
-#define UCALL_SAVE_FRAME
-#define UCALL_RESTORE_FRAME
-#endif
-
 #define UCALL_BODY                                     \
     MOVD    g, UCALL_TMP1                              \
     MOVD    g_m(UCALL_TMP1), UCALL_TMP0                \
     MOVD    RSP, UCALL_SSP                             \
+    MOVD    RSP, UCALL_TMP1                            \
+    MOVD    UCALL_TMP1, (g_sched+gobuf_sp)(g)          \
+    MOVD    R29, (g_sched+gobuf_bp)(g)                 \
+    MOVD    g_m(g), UCALL_TMP0                         \
     MOVD    m_g0(UCALL_TMP0), UCALL_TMP1               \
     MOVD    (g_sched+gobuf_sp)(UCALL_TMP1), UCALL_TMP0 \
     MOVD    UCALL_TMP0, RSP                            \
@@ -46,9 +37,7 @@
     MOVD    $15, UCALL_TMP1                            \
     BIC     UCALL_TMP1, UCALL_TMP0, UCALL_TMP0         \
     MOVD    UCALL_TMP0, RSP                            \
-    UCALL_SAVE_FRAME                                   \
-    CALL    UCALL_FN;                                  \
-    UCALL_RESTORE_FRAME                                \
+    CALL    UCALL_FN                                   \
     MOVD    UCALL_SSP, RSP
 
 TEXT ·UnsafeCall1(SB), NOSPLIT, $0-16
