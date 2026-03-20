@@ -34,24 +34,40 @@
 // 2. Update TEB stack bounds so Windows doesn't fault on
 //    stack guard page checks.
 //
-// Go's assembler only allows runtime struct field syntax like
-// m_locks(Rn) with the g pseudo-register. For other registers
-// we compute the address explicitly with ADD.
+// Go's plan9 assembler only allows runtime struct field syntax
+// (like m_locks, g_m, m_g0, etc.) with the g pseudo-register.
+// To access m.locks, we temporarily swap g to point at m,
+// read/write m_locks(g), then restore g.
+
+// INC_M_LOCKS: increments m.locks. Clobbers R10, R11.
+#define INC_M_LOCKS                                         \
+    MOVD    g_m(g), UCALL_TMP0      /* R10 = m */          \
+    MOVD    g, UCALL_TMP1           /* R11 = save g */      \
+    MOVD    UCALL_TMP0, g           /* g = m */             \
+    MOVW    m_locks(g), UCALL_TMP0  /* R10 = m.locks */     \
+    ADDW    $1, UCALL_TMP0                                  \
+    MOVW    UCALL_TMP0, m_locks(g)  /* m.locks = R10 */     \
+    MOVD    UCALL_TMP1, g           /* restore g */
+
+// DEC_M_LOCKS: decrements m.locks. Clobbers R10, R11.
+#define DEC_M_LOCKS                                         \
+    MOVD    g_m(g), UCALL_TMP0      /* R10 = m */          \
+    MOVD    g, UCALL_TMP1           /* R11 = save g */      \
+    MOVD    UCALL_TMP0, g           /* g = m */             \
+    MOVW    m_locks(g), UCALL_TMP0  /* R10 = m.locks */     \
+    SUBW    $1, UCALL_TMP0                                  \
+    MOVW    UCALL_TMP0, m_locks(g)  /* m.locks = R10 */     \
+    MOVD    UCALL_TMP1, g           /* restore g */
 
 #define UCALL_BODY                                          \
-    /* g -> m into R10 */                                   \
-    MOVD    g_m(g), UCALL_TMP0                              \
-    /* m.locks++ via explicit offset */                     \
-    ADD     $m_locks, UCALL_TMP0, UCALL_TMP1                \
-    MOVW    (UCALL_TMP1), UCALL_TMP0                        \
-    ADDW    $1, UCALL_TMP0                                  \
-    MOVW    UCALL_TMP0, (UCALL_TMP1)                        \
+    /* Disable preemption */                                \
+    INC_M_LOCKS                                             \
     /* Save original SP */                                  \
     MOVD    RSP, UCALL_SSP                                  \
     /* Save old TEB stack bounds in callee-saved regs */    \
     MOVD    0x08(R18_PLATFORM), R20                         \
     MOVD    0x10(R18_PLATFORM), R21                         \
-    /* Get m again, then g0 */                              \
+    /* Get m -> g0 */                                       \
     MOVD    g_m(g), UCALL_TMP0                              \
     MOVD    m_g0(UCALL_TMP0), UCALL_TMP1                    \
     /* Write g0 stack bounds to TEB */                      \
@@ -73,12 +89,8 @@
     MOVD    R21, 0x10(R18_PLATFORM)                         \
     /* Restore original SP */                               \
     MOVD    UCALL_SSP, RSP                                  \
-    /* g -> m -> m.locks-- via explicit offset */            \
-    MOVD    g_m(g), UCALL_TMP0                              \
-    ADD     $m_locks, UCALL_TMP0, UCALL_TMP1                \
-    MOVW    (UCALL_TMP1), UCALL_TMP0                        \
-    SUBW    $1, UCALL_TMP0                                  \
-    MOVW    UCALL_TMP0, (UCALL_TMP1)
+    /* Re-enable preemption */                              \
+    DEC_M_LOCKS
 
 #else
 
