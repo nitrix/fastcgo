@@ -14,7 +14,8 @@ func TestExample(t *testing.T) {
 		t.Fail()
 	}
 
-	outputBytes, err := exec.Command(location, "run", "./example").Output()
+	cmd := exec.Command(location, "run", "./example")
+	outputBytes, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Println("Error2:", err)
 		t.Fail()
