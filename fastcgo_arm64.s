@@ -31,7 +31,7 @@
     MOVD    $15, UCALL_TMP0                     \
     BIC     UCALL_TMP0, RSP, RSP                \
     CALL    UCALL_FN                            \
-    MOVD    UCALL_SSP, RSP                        
+    MOVD    UCALL_SSP, RSP
 
 TEXT ·UnsafeCall1(SB), NOSPLIT, $0-16
     MOVD    fn+0(FP), UCALL_FN
