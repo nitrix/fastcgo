@@ -1,4 +1,4 @@
-//go:build arm64 && (darwin || linux)
+//go:build arm64
 
 #include "go_asm.h"
 #include "textflag.h"
