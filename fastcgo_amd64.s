@@ -1,154 +1,116 @@
-//go:build arm64
- 
+//go:build amd64
+
 #include "go_asm.h"
 #include "textflag.h"
- 
-// arm64 calling convention (same on Linux, macOS, Windows):
-//   arg0..arg3 = R0..R3
-//   return     = R0
+
+// amd64 calling convention split:
 //
-// Register allocation:
-//   R4  = function pointer (callee-saved, survives the C call)
-//   R19 = saved original SP (callee-saved, survives the C call)
-//   R10/R11 = temps (caller-saved, used only before BL)
+//   Windows:
+//     arg0..arg3 = CX, DX, R8, R9
+//     return     = AX
 //
-// Windows-only callee-saved registers:
-//   R20 = saved TEB StackBase
-//   R21 = saved TEB StackLimit
- 
-#define UCALL_FN   R4
-#define UCALL_RET  R0
-#define UCALL_A0   R0
-#define UCALL_A1   R1
-#define UCALL_A2   R2
-#define UCALL_A3   R3
-#define UCALL_TMP0 R10
-#define UCALL_TMP1 R11
-#define UCALL_SSP  R19
- 
+//   Unix-like (Linux, macOS, BSD, etc.):
+//     arg0..arg3 = DI, SI, DX, CX
+//     return     = AX
+//
+// Common:
+//   AX   = function pointer / return register
+//   R13/R14 = temps
+//   R12 = saved SP
+
 #ifdef GOOS_windows
- 
-// On Windows arm64, we must:
-// 1. Disable async preemption (m.locks++) so the runtime's
-//    SuspendThread mechanism doesn't catch us on g0's stack.
-//    Done via BL to ·incMLocks / ·decMLocks helper stubs
-//    (in fastcgo_mlocks_windows_arm64.s) which can use the
-//    g pseudo-register for runtime struct field access.
-// 2. Update TEB stack bounds so Windows doesn't fault on
-//    stack guard page checks when SP is on g0's stack.
- 
-#define UCALL_BODY                                          \
-    /* Disable preemption (clobbers R10, R11) */            \
-    BL      ·incMLocks(SB)                                  \
-    /* Save original SP */                                  \
-    MOVD    RSP, UCALL_SSP                                  \
-    /* Save old TEB stack bounds in callee-saved regs */    \
-    MOVD    0x08(R18_PLATFORM), R20                         \
-    MOVD    0x10(R18_PLATFORM), R21                         \
-    /* Get m -> g0 */                                       \
-    MOVD    g_m(g), UCALL_TMP0                              \
-    MOVD    m_g0(UCALL_TMP0), UCALL_TMP1                    \
-    /* Write g0 stack bounds to TEB */                      \
-    MOVD    (g_stack+stack_hi)(UCALL_TMP1), UCALL_TMP0      \
-    MOVD    UCALL_TMP0, 0x08(R18_PLATFORM)                  \
-    MOVD    (g_stack+stack_lo)(UCALL_TMP1), UCALL_TMP0      \
-    MOVD    UCALL_TMP0, 0x10(R18_PLATFORM)                  \
-    /* Switch to g0's scheduler stack */                    \
-    MOVD    (g_sched+gobuf_sp)(UCALL_TMP1), UCALL_TMP0      \
-    MOVD    UCALL_TMP0, RSP                                 \
-    /* 16-byte align */                                     \
-    MOVD    $15, UCALL_TMP1                                 \
-    BIC     UCALL_TMP1, UCALL_TMP0, UCALL_TMP0              \
-    MOVD    UCALL_TMP0, RSP                                 \
-    /* Call the C function */                               \
-    BL      (UCALL_FN)                                      \
-    /* Restore TEB stack bounds */                          \
-    MOVD    R20, 0x08(R18_PLATFORM)                         \
-    MOVD    R21, 0x10(R18_PLATFORM)                         \
-    /* Restore original SP */                               \
-    MOVD    UCALL_SSP, RSP                                  \
-    /* Re-enable preemption (clobbers R10, R11) */          \
-    BL      ·decMLocks(SB)
- 
+    #define UCALL_FN   AX
+    #define UCALL_RET  AX
+    #define UCALL_A0   CX
+    #define UCALL_A1   DX
+    #define UCALL_A2   R8
+    #define UCALL_A3   R9
+    #define UCALL_SHADOW  SUBQ $32, SP
 #else
- 
-// Unix-like (Linux, macOS, BSD): straightforward g0 stack switch.
- 
-#define UCALL_BODY                                          \
-    MOVD    g_m(g), UCALL_TMP0                              \
-    MOVD    RSP, UCALL_SSP                                  \
-    MOVD    m_g0(UCALL_TMP0), UCALL_TMP1                    \
-    MOVD    (g_sched+gobuf_sp)(UCALL_TMP1), UCALL_TMP0      \
-    MOVD    UCALL_TMP0, RSP                                 \
-    MOVD    $15, UCALL_TMP1                                 \
-    BIC     UCALL_TMP1, UCALL_TMP0, UCALL_TMP0              \
-    MOVD    UCALL_TMP0, RSP                                 \
-    BL      (UCALL_FN)                                      \
-    MOVD    UCALL_SSP, RSP
- 
+    #define UCALL_FN   AX
+    #define UCALL_RET  AX
+    #define UCALL_A0   DI
+    #define UCALL_A1   SI
+    #define UCALL_A2   DX
+    #define UCALL_A3   CX
+    #define UCALL_SHADOW
 #endif
- 
+
+#define UCALL_TMP0 R13
+#define UCALL_TMP1 R14
+#define UCALL_SSP  R12
+
+#define UCALL_BODY                             \
+    MOVQ    (TLS), UCALL_TMP1                  \
+    MOVQ    g_m(UCALL_TMP1), UCALL_TMP0        \
+    MOVQ    SP, UCALL_SSP                      \
+    MOVQ    m_g0(UCALL_TMP0), UCALL_TMP1       \
+    MOVQ    (g_sched+gobuf_sp)(UCALL_TMP1), SP \
+    ANDQ    $~15, SP                           \
+    UCALL_SHADOW                               \
+    CALL    UCALL_FN                           \
+    MOVQ    UCALL_SSP, SP
+
 TEXT ·UnsafeCall1(SB), NOSPLIT, $0-16
-    MOVD    fn+0(FP), UCALL_FN
-    MOVD    arg0+8(FP), UCALL_A0
+    MOVQ    fn+0(FP), UCALL_FN
+    MOVQ    arg0+8(FP), UCALL_A0
     UCALL_BODY
     RET
- 
+
 TEXT ·UnsafeCall2(SB), NOSPLIT, $0-24
-    MOVD    fn+0(FP), UCALL_FN
-    MOVD    arg0+8(FP), UCALL_A0
-    MOVD    arg1+16(FP), UCALL_A1
+    MOVQ    fn+0(FP), UCALL_FN
+    MOVQ    arg0+8(FP), UCALL_A0
+    MOVQ    arg1+16(FP), UCALL_A1
     UCALL_BODY
     RET
- 
+
 TEXT ·UnsafeCall3(SB), NOSPLIT, $0-32
-    MOVD    fn+0(FP), UCALL_FN
-    MOVD    arg0+8(FP), UCALL_A0
-    MOVD    arg1+16(FP), UCALL_A1
-    MOVD    arg2+24(FP), UCALL_A2
+    MOVQ    fn+0(FP), UCALL_FN
+    MOVQ    arg0+8(FP), UCALL_A0
+    MOVQ    arg1+16(FP), UCALL_A1
+    MOVQ    arg2+24(FP), UCALL_A2
     UCALL_BODY
     RET
- 
+
 TEXT ·UnsafeCall4(SB), NOSPLIT, $0-40
-    MOVD    fn+0(FP), UCALL_FN
-    MOVD    arg0+8(FP), UCALL_A0
-    MOVD    arg1+16(FP), UCALL_A1
-    MOVD    arg2+24(FP), UCALL_A2
-    MOVD    arg3+32(FP), UCALL_A3
+    MOVQ    fn+0(FP), UCALL_FN
+    MOVQ    arg0+8(FP), UCALL_A0
+    MOVQ    arg1+16(FP), UCALL_A1
+    MOVQ    arg2+24(FP), UCALL_A2
+    MOVQ    arg3+32(FP), UCALL_A3
     UCALL_BODY
     RET
- 
+
 TEXT ·UnsafeCall1Return1(SB), NOSPLIT, $0-24
-    MOVD    fn+0(FP), UCALL_FN
-    MOVD    arg0+8(FP), UCALL_A0
+    MOVQ    fn+0(FP), UCALL_FN
+    MOVQ    arg0+8(FP), UCALL_A0
     UCALL_BODY
-    MOVD    UCALL_RET, ret+16(FP)
+    MOVQ    UCALL_RET, ret+16(FP)
     RET
- 
+
 TEXT ·UnsafeCall2Return1(SB), NOSPLIT, $0-32
-    MOVD    fn+0(FP), UCALL_FN
-    MOVD    arg0+8(FP), UCALL_A0
-    MOVD    arg1+16(FP), UCALL_A1
+    MOVQ    fn+0(FP), UCALL_FN
+    MOVQ    arg0+8(FP), UCALL_A0
+    MOVQ    arg1+16(FP), UCALL_A1
     UCALL_BODY
-    MOVD    UCALL_RET, ret+24(FP)
+    MOVQ    UCALL_RET, ret+24(FP)
     RET
- 
+
 TEXT ·UnsafeCall3Return1(SB), NOSPLIT, $0-40
-    MOVD    fn+0(FP), UCALL_FN
-    MOVD    arg0+8(FP), UCALL_A0
-    MOVD    arg1+16(FP), UCALL_A1
-    MOVD    arg2+24(FP), UCALL_A2
+    MOVQ    fn+0(FP), UCALL_FN
+    MOVQ    arg0+8(FP), UCALL_A0
+    MOVQ    arg1+16(FP), UCALL_A1
+    MOVQ    arg2+24(FP), UCALL_A2
     UCALL_BODY
-    MOVD    UCALL_RET, ret+32(FP)
+    MOVQ    UCALL_RET, ret+32(FP)
     RET
- 
+
 TEXT ·UnsafeCall4Return1(SB), NOSPLIT, $0-48
-    MOVD    fn+0(FP), UCALL_FN
-    MOVD    arg0+8(FP), UCALL_A0
-    MOVD    arg1+16(FP), UCALL_A1
-    MOVD    arg2+24(FP), UCALL_A2
-    MOVD    arg3+32(FP), UCALL_A3
+    MOVQ    fn+0(FP), UCALL_FN
+    MOVQ    arg0+8(FP), UCALL_A0
+    MOVQ    arg1+16(FP), UCALL_A1
+    MOVQ    arg2+24(FP), UCALL_A2
+    MOVQ    arg3+32(FP), UCALL_A3
     UCALL_BODY
-    MOVD    UCALL_RET, ret+40(FP)
+    MOVQ    UCALL_RET, ret+40(FP)
     RET
- 
