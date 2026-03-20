@@ -1,9 +1,9 @@
-//go:build arm64
+//go:build arm64 && !windows
 
 #include "go_asm.h"
 #include "textflag.h"
 
-// arm64 native ABI on Linux and Windows:
+// arm64 native ABI on Linux and macOS:
 //   arg0..arg3 = R0..R3
 //   return     = R0
 //
@@ -11,7 +11,10 @@
 //   R4  = function pointer
 //   R10/R11 = temps (caller-saved, not argument registers)
 //   R19 = saved original SP (callee-saved in platform ABI, preserved across call)
-//   R20 = saved R18 / TEB pointer (callee-saved; Windows arm64 reserves R18 for TEB)
+//
+// NOTE: Windows arm64 is excluded via build tag. The Go assembler reserves R18
+// (the Windows TEB pointer) and won't let us save/restore it, and the NOSPLIT
+// frameless functions here are incompatible with Windows SEH unwinding.
 
 #define UCALL_FN   R4
 #define UCALL_RET  R0
@@ -22,7 +25,6 @@
 #define UCALL_TMP0 R10
 #define UCALL_TMP1 R11
 #define UCALL_SSP  R19
-#define UCALL_STEB R20
 
 #define UCALL_BODY                                     \
     MOVD    g, UCALL_TMP1                              \
@@ -39,9 +41,7 @@
     MOVD    $15, UCALL_TMP1                            \
     BIC     UCALL_TMP1, UCALL_TMP0, UCALL_TMP0         \
     MOVD    UCALL_TMP0, RSP                            \
-    MOVD    R18, UCALL_STEB                            \
     CALL    UCALL_FN                                   \
-    MOVD    UCALL_STEB, R18                            \
     MOVD    UCALL_SSP, RSP
 
 TEXT ·UnsafeCall1(SB), NOSPLIT, $0-16

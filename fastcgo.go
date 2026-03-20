@@ -1,3 +1,5 @@
+//go:build amd64 || (arm64 && (darwin || linux))
+
 package fastcgo
 
 import "unsafe"
