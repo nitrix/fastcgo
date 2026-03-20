@@ -22,15 +22,30 @@
 #define UCALL_TMP1 R11
 #define UCALL_SSP  R19
 
-// Mirror of the amd64 logic:
-//   1. Get current g from the dedicated register
-//   2. g -> m
-//   3. Save SP
-//   4. m -> g0
-//   5. Switch to g0's scheduler stack
-//   6. 16-byte align SP
-//   7. CALL
-//   8. Restore SP
+// On Windows arm64, switching to g0's stack causes hangs because the
+// Windows kernel validates stack pointers against the TEB (Thread
+// Environment Block) stack bounds. g0's stack is not registered with
+// the TEB, so touching it can trigger a stack guard page fault that
+// the OS turns into an access violation or silent hang.
+//
+// Instead, on Windows we stay on the current goroutine stack, just
+// save SP, align to 16 bytes, call, and restore. This is safe for
+// small/fast C functions (which is the entire point of fastcgo).
+//
+// On Unix-like systems (Linux, macOS, BSD) we do the full g0 stack
+// switch, matching the amd64 behavior.
+
+#ifdef GOOS_windows
+#define UCALL_BODY                                     \
+    MOVD    RSP, UCALL_SSP                             \
+    MOVD    RSP, UCALL_TMP0                            \
+    MOVD    $15, UCALL_TMP1                            \
+    BIC     UCALL_TMP1, UCALL_TMP0, UCALL_TMP0         \
+    SUB     $16, UCALL_TMP0, UCALL_TMP0                \
+    MOVD    UCALL_TMP0, RSP                            \
+    BL      (UCALL_FN)                                 \
+    MOVD    UCALL_SSP, RSP
+#else
 #define UCALL_BODY                                     \
     MOVD    g, UCALL_TMP1                              \
     MOVD    g_m(UCALL_TMP1), UCALL_TMP0                \
@@ -43,6 +58,7 @@
     MOVD    UCALL_TMP0, RSP                            \
     BL      (UCALL_FN)                                 \
     MOVD    UCALL_SSP, RSP
+#endif
 
 TEXT ·UnsafeCall1(SB), NOSPLIT, $0-16
     MOVD    fn+0(FP), UCALL_FN
