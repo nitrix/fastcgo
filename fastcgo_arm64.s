@@ -36,8 +36,8 @@
     MOVD    g_m(UCALL_TMP1), UCALL_TMP0                \
     MOVD    RSP, UCALL_SSP                             \
     MOVD    m_g0(UCALL_TMP0), UCALL_TMP1               \
-    MOVD    (g_sched+gobuf_sp)(UCALL_TMP1), RSP        \
-    MOVD    RSP, UCALL_TMP0                            \
+    MOVD    (g_sched+gobuf_sp)(UCALL_TMP1), UCALL_TMP0 \
+    MOVD    UCALL_TMP0, RSP                            \
     MOVD    $15, UCALL_TMP1                            \
     BIC     UCALL_TMP1, UCALL_TMP0, UCALL_TMP0         \
     MOVD    UCALL_TMP0, RSP                            \
